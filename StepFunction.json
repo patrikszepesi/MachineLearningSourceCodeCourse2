@@ -1,0 +1,66 @@
+{
+    "Comment": "It runs a machine learning pipeline",
+    "StartAt": "Submit Job",
+    "States": {
+      "Submit Job": {
+        "Type": "Task",
+        "Resource": "arn:aws:lambda:eu-central-1:862851468070:function:StepFunctionsSample-JobStatusPol-SubmitJobFunction-mXvRTRpDgnC8",
+        "ResultPath": "$.guid",
+        "Next": "Wait 60 Seconds"
+      },
+      "Wait 60 Seconds": {
+        "Type": "Wait",
+        "Seconds": 60,
+        "Next": "Get Job Status"
+      },
+      "Get Job Status": {
+        "Type": "Task",
+        "Resource": "arn:aws:lambda:eu-central-1:862851468070:function:StepFunctionsSample-JobStatusPoll-CheckJobFunction-jCmJXqpwID55",
+        "Next": "Job Complete?",
+        "InputPath": "$.guid",
+        "ResultPath": "$.status"
+      },
+      "Job Complete?": {
+        "Type": "Choice",
+        "Choices": [
+          {
+            "Variable": "$.status",
+            "StringEquals": "Failed",
+            "Next": "Job Failed"
+          },
+          {
+            "Variable": "$.status",
+            "StringEquals": "Completed",
+            "Next": "Clean batch output"
+          }
+        ],
+        "Default": "Wait 60 Seconds"
+      },
+      "Clean batch output": {
+        "Type": "Task",
+        "Resource":"arn:aws:lambda:eu-central-1:862851468070:function:clean-output-batch",
+        "ResultPath": "$.guid",
+        "Next": "Get Final Job Status",
+        "Retry": [
+          {
+            "ErrorEquals": ["States.ALL"],
+            "IntervalSeconds": 1,
+            "MaxAttempts": 3,
+            "BackoffRate":2
+          }
+        ]
+        
+      },
+      "Job Failed": {
+        "Type": "Fail",
+        "Cause": "AWS Batch Job Failed",
+        "Error": "DescribeJob returned FAILED"
+      },
+      "Get Final Job Status": {
+        "Type": "Task",
+        "Resource": "arn:aws:lambda:eu-central-1:862851468070:function:StepFunctionsSample-JobStatusPoll-CheckJobFunction-jCmJXqpwID55",
+        "InputPath": "$.guid",
+        "End": true
+      }
+    }
+  }
